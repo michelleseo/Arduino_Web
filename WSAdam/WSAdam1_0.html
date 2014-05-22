@@ -1,0 +1,85 @@
+<!--
+ WebSocket HTML source code.
+ Copyright (C) 2014 Michelle Seo <mseo0318@gmail.com>
+ 
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ADAM-4050 1.0</title>
+    <script type="text/javascript" src="jquery.js"></script>
+    <script>
+      var ws;
+      var InLamp = new Array();
+      for(var i=1;i<8;i++) InLamp[i] = '#DI' + (7-i) + '_c';
+
+      $(document).ready(function(){
+        var i=0;
+        var html='ON<br>';
+
+        for(i=0;i<8;i++)html+='<button type="button" onclick="DO_On(' + i +')">DO ' + i + '</button>'
+        $('#OutONbutton').append(html);
+
+        html='OFF<br>';
+
+        for(i=0;i<8;i++)html+='<button type="button" onclick="DO_Off(' + i +')">DO ' + i + '</button>'
+        $('#OutOFFbutton').append(html);
+
+        html='<table><tr align="center">';
+
+        for(i=0;i<7;i++)html+='<td><svg height="50" width="50"><circle id="DI' + i + '_c" cx="25" cy="25" r="20" stroke="black" fill="white"/></svg></td>';
+        html+='</tr><tr align="center"><td>DI 0</td> <td>DI 1</td> <td>DI 2</td> <td>DI 3</td> <td>DI 4</td> <td>DI 5</td> <td>DI 6</td></tr></table>';
+        $('#InputLamp').append(html);
+
+
+        WebSocketConnect();
+     });
+
+    function WebSocketConnect(){
+      try{
+        ws=new WebSocket('ws://192.168.219.16:80/');
+
+        ws.onopen=function(){ status('Connected...'); }
+        ws.onclose=function(){ status('Closed...'); }
+        ws.onerror=function(evt){ status('Error ' + evt.data); }
+
+        ws.onmessage=function(evt){
+          for(var i=1;i<8;i++){
+            if(evt.data[i] == '0') $(InLamp[i]).css("fill", "white");
+            else $(InLamp[i]).css("fill", "red");
+          }
+        };
+      }catch (exception){ status('Exception' + exception); }
+    }
+
+    function DO_On(chn){ ws.send('DO' + chn + '_ON'); }
+    function DO_Off(chn){ ws.send('DO' + chn + '_OFF'); }
+    function DI(){ ws.send("DI"); }
+
+    function status(str){ $("#status").append(str); }
+
+    </script>
+  </head>
+
+  <body>
+    <p id="status">Connection Status:</p>
+    <p id="OutONbutton"></p>
+    <p id="OutOFFbutton"></p>
+    <p id="InputLamp"></p>
+    <button type="button" onclick="DI()">IN Refresh</button>
+  </body>
+
+</html>
