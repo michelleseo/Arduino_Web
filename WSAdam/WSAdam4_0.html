@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ADAM-4017 4.0</title>
+    <script type="text/javascript" src="jquery-2.0.3.min.js"></script>
+    <script type="text/javascript" src="globalize.min.js"></script>
+    <script type="text/javascript" src="dx.chartjs.js"></script>
+    <script>
+      var ws;
+      var poll = 0;
+      var intervalTimer;
+
+      $(function(){
+        $('#gaugeContainer').dxCircularGauge({
+          scale: {
+            startValue: 0,
+            endValue: 10,
+            majorTick: {tickInterval: 1},
+            minorTick: {visible: true, tickInterval: 0.1}
+          },
+          rangeContainer: {
+            ranges: [{startValue:0, endValue:9, color:'royalblue'},
+                     {startValue:9, endValue:10, color:'red'}]
+          },  
+          valueIndicator: {color: 'red'},
+          title: {
+            text: 'ADAM-4017',
+            font: {size: 28},
+            position: 'bottom-center'
+          }
+        });
+      })
+
+      $(document).ready(function() {
+        WebSocketConnect();
+      });
+
+      function WebSocketConnect(){
+        try{
+          ws=new WebSocket('ws://192.168.219.16:80/');
+          ws.onopen=function(){
+            status('Connected...');
+            ws.send("AI0");
+          }  
+          ws.onclose=function(){ status('Closed...'); }
+          ws.onerror=function(evt){ status('Error ' + evt.data); }
+          ws.onmessage = function(evt) {
+            $('#gaugeContainer').dxCircularGauge('instance').value(evt.data);
+          };
+        }catch (exception) { status('Exception' + exception); }
+      }
+
+      function DI_poll() {
+          ws.send("AI0");
+          intervalTimer = setTimeout(function() { DI_poll() }, 500);
+      }
+      function DI_pollEnable() {
+          if (!poll) {
+              poll++;
+              DI_poll();
+          }
+      }
+      function DI_pollDisable() {
+          clearTimeout(intervalTimer);
+          poll = 0;
+      }
+      function status(str) { $("#status").append(str); }
+
+    </script>
+  </head>
+
+  <body>
+    <p id="status">Connection Status:</p>
+    <button type="button" onclick="DI_pollEnable()">Input Refresh ON</button>
+    <button type="button" onclick="DI_pollDisable()">OFF</button>
+    <div id="gaugeContainer" style="height:380px"></div>
+  </body>
+
+</html>
