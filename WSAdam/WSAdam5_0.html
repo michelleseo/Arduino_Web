@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebLogger 5.0</title>
+    <script type="text/javascript" src="jquery-2.0.3.min.js"></script>
+    <script>
+      var ws;
+      var rcvCnt;
+
+      $(document).ready(function() {
+        WebSocketConnect();
+      });
+
+      function WebSocketConnect(){
+        var ar = new Array();
+        var arSz, i;
+        try{
+          ws=new WebSocket('ws://192.168.219.16:80/');
+          ws.onopen=function(){
+            status('Connected...');
+          }  
+          ws.onclose=function(){ status('Closed...'); }
+          ws.onerror=function(evt){ status('Error ' + evt.data); }
+          ws.onmessage = function(evt) {
+            ar = evt.data.split('=');
+            // receive Last Data Block Number  
+            if(ar[0] == 'N'){
+              $("#lastBlockNo").empty();  
+              $("#lastBlockNo").append('Last Block Number:' + ar[1]);  
+            }
+            // receive Time Stamp
+            if(ar[0] == 'T'){
+              $("#timestamp").empty();  
+              $("#timestamp").append('TimeStamp(milliseconds):' + ar[1]);
+            }
+            // receive Data Block
+            if(ar[0] == 'D'){
+              $("#RcvLn").append('<p>' + ar[1] + '<p>');
+              if(ar[1] == '-99.999'){
+                $("#recordCnt").empty();  
+                $("#recordCnt").append('Record Count:' + rcvCnt);
+              }
+              rcvCnt++;
+            }
+          }
+        }catch (exception) { status('Exception' + exception); }
+      }
+
+      function upload_lastBlockNo(){
+        ws.send("GET0");
+      }
+      function upload_DataBlock(){
+        var recNo = document.getElementById("getRecordNo").value;
+        ws.send("GET" + recNo);
+        rcvCnt = 0;
+        $("#timestamp").empty();
+        $("#recordCnt").empty();
+        $("#RcvLn").empty();
+      }
+      function status(str){
+        $("#status").empty();
+        $("#status").append(str);
+      }
+
+    </script>
+  </head>
+
+  <body>
+    <p id="status"></p>
+    <button type="button" onclick="upload_lastBlockNo()">Get Last Data Block Number</button>
+    <br />
+    <input type="text" id="getRecordNo" value="1">
+    <button type="button" onclick="upload_DataBlock()">Get Data Block</button>
+    <p id="lastBlockNo"></p>
+    <p id="timestamp"></p>
+    <p id="recordCnt"></p>
+    <p id="RcvLn"></p>
+
+  </body>
+
+</html>
