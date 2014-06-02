@@ -23,7 +23,7 @@
 #include "Sd2Card.h"
 #include <Time.h>
 
-//-------------------------------------Display Message ���� �� �ȳ��� RAM�� �� ���� ���. code�� �ű��.
+//-------------------------------------We cannot use RAM on Display Message. Move it to code.
 #include <avr/pgmspace.h>
                                             //0123456789012345 
 prog_char NEW_SD_MSG[] PROGMEM  =           {"New SD"};
@@ -42,10 +42,10 @@ WebSocket wsServer;
 //-------------------------------------SD Card
 
 #define USED_MARK       0xaa55a500
-#define SD_BASE_BLOCK   1024    //1024�� Ư���� ���ڴ� �ƴϴ�. 
+#define SD_BASE_BLOCK   1024    //1024 is nothing special.
 #define LOG_BLOCK_SIZE  120
 
-byte sdBuffer[512];     //SD card�� 512Bytes block ������ Write �ȴ�. �׷��� ��Ե� 512bytes�� �־�� �Ѵ�.
+byte sdBuffer[512];     //SD card only writes in 512 bytes block. Thus we have to have 512 bytes.
 byte sdStatus = 0;
 byte LogBlockSize = 0;
 uint32_t currBlock;
@@ -100,7 +100,7 @@ void setup(){
   rx485ix = -1;
 
   setTime(10,0,0,14,5,14);    //setTime(hours, minutes, seconds, days, months, years);
-                              //RTC�� �ޱ�������� �ð��� ���� ���� ���.
+                              //Time is not going to be right until we add RTC.
   SDbegin();
   if(!sdStatus) printProgln(SD_FAIL_MSG);
 }
@@ -138,7 +138,7 @@ void SDbegin(void){
   if(!(sdCard.readBlock(SD_BASE_BLOCK, sdBuffer))) return;  //SD Card Read Fail
   pB = sdBuffer;
 
-  if(*((uint32_t*)pB) != USED_MARK){       //Used Flag�� ���. New SD Card !!
+  if(*((uint32_t*)pB) != USED_MARK){       //No Used Flag. New SD Card!!
     printProgln(NEW_SD_MSG);
     *((uint32_t*)pB) = USED_MARK;
     currBlock = SD_BASE_BLOCK + 1;
@@ -146,7 +146,7 @@ void SDbegin(void){
 
     if(!(sdCard.writeBlock(SD_BASE_BLOCK, sdBuffer))) return;   //SD Card Write Fail
   }
-  else currBlock = *((uint32_t*)(pB+4));    //ù��° Free block
+  else currBlock = *((uint32_t*)(pB+4));    //First Free Block
 
   LogBlockSize = 0;
   sdStatus++;  
@@ -154,18 +154,18 @@ void SDbegin(void){
 }
 
 //-----------------------------------------------
-// DATA Logging Block�� �����.
+// Create DATA Logging Block
 //-----------------------------------------------
 void makeLogBlock(void){
   byte i;
   byte *pB;
   float fdata;
 
-  //------------------------- ó���̸� buffer�� �ʱ�ȭ �Ѵ�.
+  //------------------------- Reset buffer if it is the first time.
   if(!LogBlockSize){
-    pB = sdBuffer + 8;    //Used Flag, Time-stamp�� �������� ��´�.
-    fdata = -99.999 * 10.;//-99.999�� data�� ��ٴ� ��. read�� /10�� �ϴϱ� �̸� *10�� �� �д�.
-    i = 120;              //120���� ä���.
+    pB = sdBuffer + 8;    //insert Used Flag & time-stamp when finished.
+    fdata = -99.999 * 10.;//-99.999 means that there is no data. When we read them we do /10 thus we have to do *10.
+    i = 120;              //fill it in 120 times.
     while(i--){
       *((float*)pB) = fdata;
       pB += 4;
@@ -174,23 +174,23 @@ void makeLogBlock(void){
     while(i--){*pB = 0x00;}
   }  
   /*
-    ADAM-4017�� +dd.ddd 
-    ���� �Ҽ����� ����ϰ� �Ҽ��� ���� 3�ڸ��� ����Ѵ�.
+    ADAM-4017 returns +dd.ddd
+    It uses fixed 3 decimal points.
 
-    �Ҽ��� �ִ� string�� float�� ��ȯ�ϱ� ���ؼ�
+    To convert decimal string to float:
     double atof	(	const char * 	nptr	)	
     http://www.nongnu.org/avr-libc/user-manual/group__avr__stdlib.html#ga689c9d3c4c04463aa31d329937789d06
     
-    �׷��� ������ �ִ�. �Ҽ��� ���� 2�ڸ����� �ۿ� �ȵȴ�.
-    �Ҽ��� ���� 3�ڸ����� �ݿø��ϱ� ���� �Ѵ�.
-    �� "12.345" �� atof()�� ��ȯ�ϸ� 12.35 �� �ȴ� 
+    But there is a problem. It only works with 2 decimal points.
+    It rounds up third decimal point.
+    Thus atof("12.345") will become 12.35.
 
-    �ذ�å���� �Ҽ����ڸ��� �ϳ� �̵��� ����(�� *10) float�� ��ȯ�Ѵ�.
+    As a solution we do *10 then convert it to float.
     0123456   0123456
     +98.765   +987.65
   */
 
- //------------------------- buffer���� Data�� �о� �ִ´�.
+ //------------------------- Insert Data into buffer
                         //            0123456
                         //rx485Ln[] ">+dd.ddd"<cr>
   rx485Ln[3] = rx485Ln[4];
@@ -201,17 +201,17 @@ void makeLogBlock(void){
 
   LogBlockSize++;
  
-  //------------------------- buffer�� ��� ä���.
+  //------------------------- buffer is full
    if(LogBlockSize >= LOG_BLOCK_SIZE){
     pB = sdBuffer;
-    *((uint32_t*)pB) = USED_MARK;  //Used Flag �� 
+    *((uint32_t*)pB) = USED_MARK;  //Used Flag
     pB += 4;
-    *((time_t*)pB) = now();         //Time-stamp�� ���� ����
+    *((time_t*)pB) = now();         //Time-stamp
 
-    sdCard.writeBlock(currBlock, sdBuffer); //SD Card�� �� �ִ´�.
+    sdCard.writeBlock(currBlock, sdBuffer); //write to SD Card
     currBlock++;  
     LogBlockSize = 0;    
-    update_currBlock();             //���� Free block ��ġ�� �����Ѵ�.
+    update_currBlock();             //Fix the next free block location
   }
 }
 
@@ -226,12 +226,12 @@ void update_currBlock(void){
       *((uint32_t*)(pB+4)) = currBlock;
       if(sdCard.writeBlock(SD_BASE_BLOCK, sdBuffer)){
         status++;
-        printTOD();         //time stamp display
-        printCurrBlock();   //���� Free block ��ġ display
+        printTOD();         //display time stamp
+        printCurrBlock();   //display next free block
       }
     }
   }
-  if(!status) printProgln(BLOCK_UPDATE_FAIL_MSG); //���� ũ�� �� �� �Ǿ� ����.
+  if(!status) printProgln(BLOCK_UPDATE_FAIL_MSG); //something is going terribly wrong
 }
 
 /*
@@ -272,8 +272,8 @@ void upload_DataBlock(uint32_t reqBlock){
   int cnt;
   float data, *pF;
 
-  // ���� Logging ���� Block�� �ϴ� SD�� save �Ѵ�.
-  // ADAM-4017���� receive ���̵� packet�� ��ĥ �� �ִ�. 
+  // Store the currently logging Block into SD.
+  // We might lose packets that ADAM-4017 is receiving.
   sdCard.writeBlock(currBlock, sdBuffer);
 
   printLn[1] = '=';
@@ -309,7 +309,7 @@ void upload_DataBlock(uint32_t reqBlock){
     setTerminator((byte*)(printLn+2));
     WSsend(printLn, strlen(printLn));
   }
-  // save �� �ξ�� Block�� �ٽ� �ø���.
+  // Reload the block that we have stored.
   sdCard.readBlock(currBlock, sdBuffer);
 }
 
@@ -466,4 +466,5 @@ void onConnect(WebSocket &socket){
 
 void onDisconnect( WebSocket &socket ){
 }
+
 

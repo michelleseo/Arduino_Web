@@ -16,10 +16,6 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/*
-  <2.0>
-  input polling
-*/
 #include <SPI.h>
 #include <Ethernet.h>
 #include <WebSocket.h>
@@ -179,4 +175,5 @@ void hexToBit(char hex, int p)
     hex <<= 1;
   }
 }
+
 
