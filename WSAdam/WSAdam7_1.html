@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebLogger 7.1</title>
+    <script src="jquery-2.0.3.min.js"></script>
+    <script src="globalize.min.js"></script>
+    <script src="knockout-3.0.0.js"></script>
+    <script src="dx.chartjs.js"></script>
+    <script>
+      var blockNo;
+      var data = new Array();
+      var tod = new Date();
+      var db = openDatabase('WebLogger8', '1.0', 'Web Logger', 512*1024);
+
+      $(document).ready(function() {
+        db.transaction(function (tx) {
+          tx.executeSql('CREATE TABLE IF NOT EXISTS LogIndex(block, timeStamp)');
+          tx.executeSql('CREATE TABLE IF NOT EXISTS LogData(block, seq, data)');
+        });
+      });
+
+      var chartDataSource = [];
+      $(function() {
+        $("#chartContainer").dxChart({
+          title:{
+            text:'Logged Data Graph'
+          },
+          dataSource: chartDataSource,
+          commonSeriesSettings: {
+            type:'spline',
+            argumentField:'time'
+          },
+          series: [{ name: 'ADAM-4017', valueField: 'data', point: {visible: false} } ]
+        });
+      })
+
+      function viewIndex(){
+        var len, i;
+        db.transaction(function(tx) {
+          tx.executeSql("SELECT * FROM LogIndex", [], function(tx, results) {
+            len = results.rows.length;
+            clearDspPara();
+            for(i=0;i<len;i++){
+              tod.setTime(results.rows.item(i).timeStamp * 1000);
+              $("#dumpPara").append('<p>' + results.rows.item(i).block + ',' + tod.toLocaleString() + '<p>');
+            }
+          }, null);
+        });
+      }
+      function viewData(){
+        var len, i;
+        blockNo = document.getElementById("DataBlockNo").value;
+        db.transaction(function(tx) {
+          tx.executeSql('SELECT * FROM LogData WHERE block="' + blockNo + '"', [], function(tx, results) {
+            len = results.rows.length;
+            if(len > 120) len = 120;
+            clearDspPara();
+            for(i=0;i<len;i++){
+              data[results.rows.item(i).seq] = results.rows.item(i).data;
+            }
+            for(i=0;i<len;i++){
+              $("#dumpPara").append('<p>' + data[i] + '<p>');
+            }
+          }, null);
+        });
+      }
+
+      function graphData(){
+        var len, i;
+        var chartData = [];
+        blockNo = document.getElementById("DataBlockNo").value;
+        db.transaction(function(tx) {
+          tx.executeSql('SELECT * FROM LogData WHERE block="' + blockNo + '"', [], function(tx, results) {
+            len = results.rows.length;
+            if(len > 120) len = 120;
+            for(i=0;i<len;i++){
+              data[results.rows.item(i).seq] = parseFloat(results.rows.item(i).data);
+            }
+            for(i=0;i<len;i++){
+              chartData.push({time: i*0.5, data: data[i]});
+            }
+            observableChartDataSource = ko.observableArray(chartData);
+            var chart = $("#chartContainer").dxChart("instance");
+            var dataSource = chart.option('dataSource', chartData);
+          }, null);
+        });
+      }
+
+      function clearDspPara(){
+          $("#dumpPara").empty();
+      }
+    </script>
+  </head>
+  
+  <body>
+    <div id="chartContainer" style="width: 720px; height: 440px;"></div>
+    <br />
+    <button type="button" onclick="viewIndex()">View Index</button>
+    <input type="text" id="DataBlockNo" value="1">
+    <button type="button" onclick="viewData()">View Data</button>
+    <button type="button" onclick="graphData()">Graph Data </button>
+    <p id="dumpPara"></p>
+  </body>
+
+</html>
