@@ -1,0 +1,172 @@
+<!--
+ WebLogger source code.
+ Copyright (C) 2014 Michelle Seo <mseo0318@gmail.com>
+ 
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebLogger 6.5</title>
+    <script type="text/javascript" src="jquery-2.0.3.min.js"></script>
+    <script>
+      var ws;
+      var blockNo, rcvCnt, timeStamp;
+      var data = new Array();
+      var tod = new Date();
+
+      var db = openDatabase('WebLogger8', '1.0', 'Web Logger', 512*1024);
+
+      $(document).ready(function() {
+        db.transaction(function (tx) {
+          tx.executeSql('CREATE TABLE IF NOT EXISTS LogIndex(block, timeStamp)');
+          tx.executeSql('CREATE TABLE IF NOT EXISTS LogData(block, seq, data)');
+        });
+        WebSocketConnect();
+      });
+
+      function WebSocketConnect(){
+        var ar = new Array();
+        var arSz, i;
+        try{
+          ws=new WebSocket('ws://192.168.219.16:80/');
+          ws.onopen=function(){
+            status('Connected...');
+          }  
+          ws.onclose=function(){ status('Closed...'); }
+          ws.onerror=function(evt){ status('Error ' + evt.data); }
+          ws.onmessage = function(evt) {
+            ar = evt.data.split('=');
+            // receive Last Data Block Number  
+            if(ar[0] == 'N'){
+              blockNo = ar[1];
+              $("#blockNoPara").empty();  
+              $("#blockNoPara").append('Block Number:' + blockNo);  
+            }
+            // receive Time Stamp
+            if(ar[0] == 'T'){
+              timeStamp = ar[1];
+              tod.setTime((timeStamp - (9*3600)) * 1000);
+              $("#timestampPara").empty();  
+              $("#timestampPara").append(tod.toLocaleString());
+            }
+            // receive Data Block
+            if(ar[0] == 'D'){
+              data[rcvCnt] = ar[1];
+
+              if(ar[1] != '-99.999')rcvCnt++;
+              else {
+                $("#recordCntPara").empty();  
+                $("#recordCntPara").append('Record Count:' + rcvCnt);
+                if(blockNo != 0){
+                  db.transaction(function (tx) {                  
+                    if(rcvCnt>120) rcvCnt = 120;
+                    for(i=0;i<rcvCnt;i++){
+                      tx.executeSql("INSERT INTO LogData VALUES(?, ?, ?)", [blockNo, i, data[i]]);
+                    } 
+                  });
+                  db.transaction(function (tx) {
+                    tx.executeSql("INSERT INTO LogIndex VALUES(?, ?)", [blockNo, timeStamp]);
+                  });
+                }
+              }
+            }
+          }
+        }catch (exception) { status('Exception' + exception); }
+      }
+
+      function upload_lastBlockNo(){
+        ws.send("GET0");
+      }
+      function upload_DataBlock(){
+        blockNo = document.getElementById("DataBlockNo").value;
+        ws.send("GET" + blockNo);
+        blockNo = 0;
+        rcvCnt = 0;
+        $("#timestampPara").empty();
+        $("#recordCntPara").empty();
+        $("#dumpPara").empty();
+      }
+      function status(str){
+        $("#status").empty();
+        $("#status").append(str);
+      }
+      function viewIndex(){
+        var len, i;
+        db.transaction(function(tx) {
+          tx.executeSql("SELECT * FROM LogIndex", [], function(tx, results) {
+            len = results.rows.length;
+            clearDspPara();
+            for(i=0;i<len;i++){
+              tod.setTime(results.rows.item(i).timeStamp * 1000);
+              $("#dumpPara").append('<p>' + results.rows.item(i).block + ',' + tod.toLocaleString() + '<p>');
+            }
+          }, null);
+        });
+      }
+      function viewData(){
+        var len, i;
+        blockNo = document.getElementById("DataBlockNo").value;
+        db.transaction(function(tx) {
+          tx.executeSql('SELECT * FROM LogData WHERE block="' + blockNo + '"', [], function(tx, results) {
+            len = results.rows.length;
+            if(len > 120) len = 120;
+            clearDspPara();
+            for(i=0;i<len;i++){
+              data[results.rows.item(i).seq] = results.rows.item(i).data;
+            }
+            for(i=0;i<len;i++){
+              $("#dumpPara").append('<p>' + data[i] + '<p>');
+            }
+          }, null);
+        });
+      }
+      function getRTC(){
+        clearDspPara();
+        ws.send('RTC0');
+      }
+      function setRTC(){
+        clearDspPara();
+        var t = new Date();
+        ws.send('RTC' + (t/1000 + 9*3600));
+      }
+
+      function clearDspPara(){
+        $("#blockNoPara").empty();
+        $("#timestampPara").empty();
+        $("#recordCntPara").empty();
+        $("#dumpPara").empty();
+      }
+    </script>
+  </head>
+
+  <body>
+    <p id="status"></p>
+    <button type="button" onclick="upload_lastBlockNo()">Get Last Data Block Number</button>
+    <br />
+    <input type="text" id="DataBlockNo" value="1">
+    <button type="button" onclick="upload_DataBlock()">Get Data Block</button>
+    <br />
+    <button type="button" onclick="viewIndex()">View Index</button>
+    <button type="button" onclick="viewData()">View Data</button>
+    <br />
+    <button type="button" onclick="getRTC()">Get RTC</button>
+    <button type="button" onclick="setRTC()">Set RTC</button>
+    <p id="blockNoPara"></p>
+    <p id="timestampPara"></p>
+    <p id="recordCntPara"></p>
+    <p id="dumpPara"></p>
+  </body>
+</html>
