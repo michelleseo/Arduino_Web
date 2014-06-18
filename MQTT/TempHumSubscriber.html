@@ -1,0 +1,145 @@
+<!--
+ Temperature & Humidity Subscriber source code.
+ Copyright (C) 2014 Michelle Seo <mseo0318@gmail.com>
+ 
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Temperature & Humidity Subscriber</title>
+    
+    <script type="text/javascript" src="jquery-2.1.1.min.js"></script>
+    <script type="text/javascript" src="globalize.min.js"></script>
+    <script type="text/javascript" src="dx.chartjs.js"></script>
+    <script type="text/javascript" src="knockout-3.0.0.js"></script>
+    <script type="text/javascript" src="mqttws31.js"></script>
+    
+    <script type="text/javascript">
+        var client;
+        var t, h;
+
+        $(document).ready(function() {
+            t = $('<div style="width: 50%; height: 100%; float: left;" />').appendTo('#chartContainer');
+            h = $('<div style="width: 50%; height: 100%; float: left;" />').appendTo('#chartContainer');
+            var options = { scale: { startValue: 0, endValue: 40, majorTick: { tickInterval: 5}} };
+
+            t.dxCircularGauge($.extend(true, {}, options, {
+                geometry: { startAngle: 180, endAngle: 90 },
+                value: 0,
+                rangeContainer: {
+                    ranges: [
+                      { startValue: 28, endValue: 40, color: '#CE2029' },
+                      { startValue: 0, endValue: 10, color: '#0077BE' }
+                  ]
+                },
+                valueIndicator: { type: 'rangeBar' },
+                title: { text: 'Temperature' },
+                scale: {
+                    label: { customizeText: function(arg) {
+                    return arg.valueText + '&deg;C';
+                    }
+                    }
+                }
+            }));
+
+            h.dxCircularGauge($.extend(true, {}, options, {
+                scale: { startValue: 100, endValue: 0, majorTick: { tickInterval: 10 },
+                    label: { customizeText: function(arg) {
+                        return arg.valueText + '%';
+                    }
+                    }
+                },
+                geometry: { startAngle: 90, endAngle: 0 },
+                value: 0,
+                valueIndicator: { type: 'rangeBar' },
+                rangeContainer: {
+                    ranges: [
+                        { startValue: 33, endValue: 0, color: '#77DD77' },
+                        { startValue: 67, endValue: 33, color: '#E6E200' },
+                        { startValue: 100, endValue: 67, color: '#92000A' }
+                    ]
+                },
+                title: { text: 'Humidity' }
+            }));
+        });
+
+        client = new Messaging.Client("broker.mqttdashboard.com", 8000, "HTMLTempHumSensor" + parseInt(Math.random() * 100, 10));
+
+        // Connection Lost Message
+        client.onConnectionLost = function(responseObject) {
+            alert("Connection Lost: " + responseObject.errorMessage);
+        };
+
+        // Message Arrival
+        client.onMessageArrived = function(message) {
+            var data = message.payloadString.split(",");
+            var temperature = parseInt(data[0]);
+            var humidity = parseInt(data[1]);
+            $(t).dxCircularGauge('instance').value(temperature);
+            $(h).dxCircularGauge('instance').value(humidity);
+        };
+
+        // Connect Options
+        var options = {
+            timeout: 3,
+            onSuccess: function() {
+                alert("Connected");
+            },
+            onFailure: function(message) {
+                alert("Connection failed: " + message.errorMessage);
+            }
+        };
+
+        var publish = function(payload, topic, qos) {
+            var message = new Messaging.Message(payload);
+            message.destinationName = topic;
+            message.qos = qos;
+            client.send(message);
+        }
+        
+    </script>
+  </head>
+  
+  <body>
+    <div id="chartContainer" style="height:450px;width:1000px;" align="center"></div>
+    
+    <table width="1000px">
+      <tr>
+        <td align="right">
+          <button type="button" style="width:200px;" onclick="client.connect(options);">
+            Connect
+          </button>
+        </td>
+        <td align="center"> 
+          <button type="button" style="width:200px;" onclick="client.subscribe('DHT11/temphum', { qos: 2 }); alert('Subscribed');">
+            Subscribe
+          </button>
+        </td>
+        <td align="left">
+          <button type="button" style="width:200px;" onclick="client.disconnect();">
+            Disconnect
+          </button>
+        </td>
+      </tr>
+      
+      <tr>
+        <td colspan="3">
+          <div id="messages"></div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
